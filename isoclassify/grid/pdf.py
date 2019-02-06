@@ -12,13 +12,23 @@ def binpdf(x,y,step,iname,dustmodel):
         
         if fnmatch.fnmatch(iname,'*age*'):
 		#xax = np.arange(0.,14.5,0.25)
-                xax = np.arange(0.125,14.125,0.25)
-                step=0.25
+                step = 0.25
+                xax = np.arange(0.,14.02,step)
+                xax= np.round(xax,3)
+                #xax = np.arange(0.125,14.125,0.25)
+                #xax = np.arange(4.,5.01,0.025)
+                #step=0.25
+                #step = 0.025
 		
-	if fnmatch.fnmatch(iname,'*feh*'):
+	if fnmatch.fnmatch(iname,'*feh_act*'):
 		#xax = np.arange(-2.05,0.55,0.051)
-                xax = np.arange(-2.025,0.525,0.05)
                 step=0.05
+                xax=np.arange(-2.00,0.504,step)
+                xax = np.round(xax,3)
+                #xax = np.arange(-2.025,0.525,0.05)
+                #xax = np.arange(-0.1005,0.1005,0.005)
+                #step=0.05
+                #step = 0.005
 
 	
         if ( (isinstance(dustmodel,pd.DataFrame) == False) & (fnmatch.fnmatch(iname,'*avs*'))):
@@ -30,6 +40,10 @@ def binpdf(x,y,step,iname,dustmodel):
 	yax = np.zeros(len(xax))
 		
 	digitized = np.digitize(x, xax)
+
+        if iname == "age" or iname == "feh_act":
+            digitized = np.digitize(np.round(x,3), xax)
+        
 	yax = [y[digitized == i].sum() for i in range(1, len(xax)+1)]
 
         '''
@@ -79,7 +93,7 @@ def getpdf(x,y,step,fixed,name,dustmodel):
 
         if ( (isinstance(dustmodel,pd.DataFrame) == False) & (fnmatch.fnmatch(name,'*avs*'))):
                 return xax,yax,med,emed1,emed2
-        if fnmatch.fnmatch(name,'*feh*'):
+        if fnmatch.fnmatch(name,'*feh_act*'):
                 return xax,yax,med,emed1,emed2
         if fnmatch.fnmatch(name,'*age*'):
                 return xax,yax,med,emed1,emed2

@@ -51,6 +51,8 @@ class obsdata():
         self.numaxe = -99.0
         self.dnu = -99.0
         self.dnue = -99.0
+
+	self.evstate = -99.0
                    
     def addspec(self,value,sigma):
         self.teff = value[0]
@@ -103,6 +105,9 @@ class obsdata():
     def addcoords(self,value1,value2):
         self.ra = value1
         self.dec = value2
+
+    def addevstate(self,value):
+	self.evstate = value
 
 class resdata():
     def __init__(self):
@@ -157,6 +162,12 @@ class resdata():
         self.dispx = 0.0
         self.dispy = 0.0
 
+	self.gof = 0.0
+	self.gofep = 0.0
+	self.gofem = 0.0
+	self.gofpx = 0.0
+	self.gofpy = 0.0
+
 class extinction():
     def __init__(self):
         self.ab = 1.3454449
@@ -193,7 +204,7 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
     gsun = 27420.010
     numaxsun = 3090.0
     dnusun = 135.1
-    teffsun = 5777.0
+    teffsun = 5772.0
 
     # bolometric correction error; kinda needs to be motivated better ...
     bcerr = 0.03
@@ -212,6 +223,8 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
     izcol = input.imag - input.zmag
     jhcol = input.jmag - input.hmag
     hkcol = input.hmag - input.kmag
+    gkcol = input.gmag - input.kmag
+    vtkcol = input.vtmag - input.kmag
     bvcole = np.sqrt(input.bmage**2 + input.vmage**2)
     bvtcole = np.sqrt(input.btmage**2 + input.vtmage**2)
     grcole = np.sqrt(input.gmage**2 + input.rmage**2)
@@ -219,42 +232,44 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
     izcole = np.sqrt(input.image**2 + input.zmage**2)
     jhcole = np.sqrt(input.jmage**2 + input.hmage**2)
     hkcole = np.sqrt(input.hmage**2 + input.kmage**2)
+    gkcole = np.sqrt(input.gmage**2 + input.kmage**2)
+    vtkcole = np.sqrt(input.vtmage**2 + input.kmage**2)
 
     # determine apparent mag to use for distance estimation. K>J>g>Vt>V
-    map = -99.0
+    redmap = -99.0
     if (input.vmag > -99.0):
-        map = input.vmag
+        redmap = input.vmag
         mape = input.vmage
         band = 'v'
         model_mabs = model['vmag']
 
     if (input.vtmag > -99.0):
-        map = input.vtmag
+        redmap = input.vtmag
         mape = input.vtmage
         model_mabs = model['vtmag']
         band = 'vt'
 
     if (input.gmag > -99.0):
-        map = input.gmag
+        redmap = input.gmag
         mape = input.gmage
         model_mabs = model['gmag']   
         band = 'g'
 	
     if (input.jmag > -99.0):
-        map = input.jmag
+        redmap = input.jmag
         mape = input.jmage
         model_mabs = model['jmag']
         band = 'j'
 
     if (input.kmag > -99.0):
-        map = input.kmag
+        redmap = input.kmag
         mape = input.kmage
         model_mabs = model['kmag']
         band = 'k'
         
     # absolute magnitude
     if (input.plx > -99.0):
-        mabs = -5.0 * np.log10(1.0 / input.plx) + map + 5.0
+        mabs = -5.0 * np.log10(1.0 / input.plx) + redmap + 5.0
         mabse = np.sqrt(
             (-5.0 / (input.plx * np.log(10)))**2 * input.plxe**2 
             + mape**2 + bcerr**2
@@ -302,6 +317,7 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
         )
         ut = ut[0]
         um = np.intersect1d(um, ut)
+        print 'logg',len(um)
         
     if (input.feh > -99.0):
         ut = np.where(
@@ -319,23 +335,25 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
         return result
 
     # add reddening
-    if (map > -99.0):
+    if (redmap > -99.0):
 
         # if no reddening map is provided, add Av as a new variable
         # and fit for it
         if (isinstance(dustmodel,pd.DataFrame) == False):
             avs = np.arange(-0.3,1.0,0.01)
+	    #pdb.set_trace()
             
             # user-specified reddening
             #if (useav > -99.0):
             #    avs = np.zeros(1) + useav
                 
             mod = reddening(model, um, avs, extfactors)
+	    #pdb.set_trace()
 
         # otherwise, just redden each model according to the provided map
         else:
             mod = reddening_map(
-                model, model_mabs, map, dustmodel, um, input, extfactors, band
+                model, model_mabs, redmap, dustmodel, um, input, extfactors, band
             )
 
         # photometry to use for distance
@@ -356,7 +374,7 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
 
         um = np.arange(0,len(mod['teff']),1)
 
-        mod['dis'] = 10**((map - mod_mabs + 5.0)/5.0)
+        mod['dis'] = 10**((redmap - mod_mabs + 5.0)/5.0)
         print 'number of models incl reddening:',len(um)
     else:
         mod = model
@@ -370,7 +388,8 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
         )
         ut = ut[0]
         um = np.intersect1d(um, ut)
-
+	#pdb.set_trace()
+    #pdb.set_trace()
     if (input.teff == -99.0):
         if ((input.bmag > -99.0) & (input.vmag > -99.0)):
             ut=np.where(
@@ -385,6 +404,7 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
                 & (mod['btmag'] - mod['vtmag'] < bvtcol + sig*bvtcole))
             ut = ut[0]
             um = np.intersect1d(um,ut)
+	    #pdb.set_trace()
 
         if ((input.gmag > -99.0) & (input.rmag > -99.0)):
             ut = np.where(
@@ -392,6 +412,7 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
                 & (mod['gmag'] - mod['rmag'] < grcol+sig*grcole))
             ut = ut[0]
             um = np.intersect1d(um, ut)
+	    #pdb.set_trace()
 
         if ((input.rmag > -99.0) & (input.imag > -99.0)):
             ut = np.where(
@@ -400,6 +421,7 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
             )
             ut = ut[0]
             um = np.intersect1d(um,ut)
+	    #pdb.set_trace()
 
         if ((input.imag > -99.0) & (input.zmag > -99.0)):
             ut = np.where(
@@ -416,6 +438,7 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
             )
             ut = ut[0]
             um = np.intersect1d(um, ut)
+	    #pdb.set_trace()
 
         if ((input.hmag > -99.0) & (input.kmag > -99.0)):
             ut = np.where(
@@ -423,9 +446,26 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
                 & (mod['hmag'] - mod['kmag'] < hkcol + sig*hkcole))
             ut = ut[0]
             um = np.intersect1d(um,ut)
+	
+	if ((input.gmag > -99.0) & (input.kmag > -99.0)):
+            ut = np.where(
+                (mod['gmag'] - mod['kmag'] > gkcol - sig*gkcole) 
+                & (mod['gmag'] - mod['kmag'] < gkcol + sig*gkcole))
+            ut = ut[0]
+            um = np.intersect1d(um,ut)
 
+	if ((input.vtmag > -99.0) & (input.kmag > -99.0)):
+            ut = np.where(
+                (mod['vtmag'] - mod['kmag'] > vtkcol - sig*vtkcole) 
+                & (mod['vtmag'] - mod['kmag'] < vtkcol + sig*vtkcole))
+            ut = ut[0]
+            um = np.intersect1d(um,ut)
+
+    #pdb.set_trace()
     print 'number of models after phot constraints:',len(um)
     print '----'
+
+
 
     # bail if there are not enough good models
     if (len(um) < 10):
@@ -435,64 +475,94 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
         return np.exp(-(x-mu)**2./(2.*sig**2.))
 
 
-    # likelihoods
+    # likelihoods and avg distances
     if ((input.gmag > -99.0) & (input.rmag > -99.0)):
         lh_gr = gaussian(grcol, mod['gmag'][um]-mod['rmag'][um], grcole)
-
+	diff_gr = np.max(lh_gr)
     else:
         lh_gr = np.ones(len(um))
+	diff_gr = 1.0
 
     if ((input.rmag > -99.0) & (input.imag > -99.0)):
         lh_ri = gaussian(ricol, mod['rmag'][um]-mod['imag'][um], ricole)
-
+	diff_ri = np.max(lh_ri)
     else:
-        lh_ri = np.ones(len(um)) 
+        lh_ri = np.ones(len(um))
+	diff_ri = 1.0 
         
     if ((input.imag > -99.0) & (input.zmag > -99.0)):
         lh_iz = gaussian(izcol, mod['imag'][um]-mod['zmag'][um], izcole)
+	diff_iz = np.max(lh_iz)
     else:
-        lh_iz = np.ones(len(um)) 
+        lh_iz = np.ones(len(um))
+	diff_iz = 1.0 
    
     if ((input.jmag > -99.0) & (input.hmag > -99.0)):
         lh_jh = gaussian(jhcol, mod['jmag'][um]-mod['hmag'][um], jhcole)
+	diff_jh = np.max(lh_jh)
     else:
         lh_jh = np.ones(len(um))
+	diff_jh = 1.0
 
     if ((input.hmag > -99.0) & (input.kmag > -99.0)):
         lh_hk = gaussian(hkcol, mod['hmag'][um]-mod['kmag'][um], hkcole)
+	diff_hk = np.max(lh_hk)
     else:
-        lh_hk = np.ones(len(um))   
+        lh_hk = np.ones(len(um))
+	diff_hk = 1.0
 
     if ((input.bmag > -99.0) & (input.vmag > -99.0)):
         lh_bv = gaussian(bvcol, mod['bmag'][um]-mod['vmag'][um], bvcole)
-
+	diff_bv = np.max(lh_bv)
     else:
-        lh_bv = np.ones(len(um))  
+        lh_bv = np.ones(len(um))
+	diff_bv = 1.0
 
     if ((input.btmag > -99.0) & (input.vtmag > -99.0)):
         lh_bvt = gaussian(bvtcol, mod['btmag'][um]-mod['vtmag'][um], bvtcole)
-
+	diff_bvt = np.max(lh_bvt)
     else:
-        lh_bvt = np.ones(len(um))   
+        lh_bvt = np.ones(len(um))
+	diff_bvt = 1.0
+
+    if ((input.gmag > -99.0) & (input.kmag > -99.0)):
+        lh_gk = gaussian(gkcol, mod['gmag'][um]-mod['kmag'][um], gkcole)
+	diff_gk = np.max(lh_gk)
+    else:
+        lh_gk = np.ones(len(um))
+	diff_gk = 1.0
+
+    if ((input.vtmag > -99.0) & (input.kmag > -99.0)):
+        lh_vtk = gaussian(vtkcol, mod['vtmag'][um]-mod['kmag'][um], vtkcole)
+	diff_vtk = np.max(lh_vtk)
+    else:
+        lh_vtk = np.ones(len(um))
+	diff_vtk = 1.0
 
     if (input.teff > -99):
         lh_teff = gaussian(input.teff, mod['teff'][um], input.teffe)
+	diff_teff = np.max(lh_teff)
     else:
         lh_teff = np.ones(len(um))
+	diff_teff = 1.0
 
     if (input.logg > -99.0):
         lh_logg = gaussian(input.logg, mod['logg'][um], input.logge)
+	diff_logg = np.max(lh_logg)
     else:
         lh_logg = np.ones(len(um))
+	diff_logg = 1.0
 
     if (input.feh > -99.0):
         lh_feh = gaussian(input.feh, mod['feh_act'][um], input.fehe)
-
+	diff_feh = np.max(lh_feh)
     else:
         lh_feh = np.ones(len(um))
+	diff_feh = 1.0
 
     if (input.plx > -99.0):
         lh_mabs = np.exp( (-1./(2.*input.plxe**2))*(input.plx-1./mod['dis'][um])**2)
+	diff_mabs = np.max(lh_mabs)
 
         #if (input.plxe/input.plx < 0.1):
         #    lh_mabs = np.exp( -(mabs-mod_mabs[um])**2. / (2.*mabse**2.))
@@ -501,6 +571,7 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
         #    lh_mabs = 10**(0.2*dv) * np.exp(-((10**(0.2*dv)-1.)**2)/(2.*(input.plxe/input.plx)**2))
     else:
         lh_mabs = np.ones(len(um))
+	diff_mabs = 1.0
 
     if (input.dnu > 0.):
         mod_dnu = dnusun*mod['fdnu']*np.sqrt(10**mod['rho'])
@@ -517,8 +588,11 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
     else:
         lh_numax = np.ones(len(um))
 
-    tlh = (lh_gr*lh_ri*lh_iz*lh_jh*lh_hk*lh_bv*lh_bvt*lh_teff*lh_logg*lh_feh
+    tlh = (lh_gr*lh_ri*lh_iz*lh_jh*lh_hk*lh_bv*lh_bvt*lh_gk*lh_vtk*lh_teff*lh_logg*lh_feh
            *lh_mabs*lh_dnu*lh_numax)
+
+    gof_metric = diff_gr*diff_ri*diff_iz*diff_jh*diff_hk*diff_bv*diff_bvt*diff_gk*diff_vtk*diff_mabs*diff_teff*diff_logg*diff_feh
+
         
     # metallicity prior (only if no FeH input is given)
     if (input.feh > -99.0):
@@ -537,15 +611,20 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
     # isochrone prior (weights)
     tprior = mod['dage'][um]*mod['dmass'][um]*mod['dfeh'][um]
 
+    # evolutionary state prior (stars not in the red clump based on Hon et al. 2018 and Vrard et al. 2016)
+    evprior = np.ones(len(um))
+    evprior = np.where((mod['eep'][um] >= 631) & (mod['eep'][um] <= 707) & (input.evstate == 'RGB'),0.0,evprior)
+
     # posterior
-    prob = fprior*dprior*tprior*tlh
+    prob = fprior*dprior*tprior*tlh*evprior
     prob = prob/np.sum(prob)
+    #pdb.set_trace()
     if (isinstance(dustmodel,pd.DataFrame) == False):
         names = ['teff', 'logg', 'feh_act', 'rad', 'mass', 'rho', 'lum', 'age']
         steps = [0.001, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01]
-        fixes = [0, 1, 1, 0, 0, 1, 1, 0, 1]
+        fixes = [0, 1, 1, 0, 0, 1, 1, 0]
         
-        if (map > -99.0):
+        if (redmap > -99.0):
             names = [
                 'teff', 'logg', 'feh_act', 'rad', 'mass', 'rho', 'lum', 'age',
                 'avs'
@@ -553,7 +632,7 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
             steps = [0.001, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01]
             fixes=[0, 1, 1, 0, 0, 1, 1, 0, 1]
 
-        if ((input.plx == -99.0) & (map > -99)):
+        if ((input.plx == -99.0) & (redmap > -99)):
             names=[
                 'teff', 'logg', 'feh_act', 'rad', 'mass', 'rho', 'lum', 'age',
                 'avs', 'dis'
@@ -561,7 +640,7 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
             steps=[0.001, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01]
             fixes=[0, 1, 1, 0, 0, 1, 1, 0, 1, 0]
             
-        #if ((input.plx == -99.0) & (map > -99) & (useav > -99.0)):
+        #if ((input.plx == -99.0) & (redmap > -99) & (useav > -99.0)):
         #    names=['teff','logg','feh','rad','mass','rho','lum','age','dis']
         #    steps=[0.001,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01]
         #    fixes=[0,1,1,0,0,1,1,0,0]
@@ -590,10 +669,13 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
     ix = 1
     iy = 2
     npar = len(names)
+
+    setattr(result, 'gof', gof_metric)
+    print 'gof',gof_metric
    
     for j in range(0,npar):
         if fnmatch.fnmatch(names[j],'*lum*'):
-            lum=np.log10((mod['rad'][um]**2. * (mod['teff'][um]/5777.)**4.))
+            lum=np.log10((mod['rad'][um]**2. * (mod['teff'][um]/teffsun)**4.))
             x, y, res, err1, err2 = getpdf(
                 lum, prob, name=names[j], step=steps[j], fixed=fixes[j],
                 dustmodel=dustmodel)
@@ -637,7 +719,7 @@ def reddening(model,um,avs,extfactors):
     keys = [
         'dage', 'dmass', 'dfeh', 'teff', 'logg', 'feh_act', 'rad', 'mass',
         'rho', 'age', 'gmag', 'rmag', 'imag', 'zmag', 'jmag', 'hmag', 
-        'bmag', 'vmag', 'btmag','vtmag', 'dis', 'kmag', 'avs', 'fdnu'
+        'bmag', 'vmag', 'btmag','vtmag', 'dis', 'kmag', 'avs', 'fdnu', 'eep'
     ]
 
     dtype = [(key, float) for key in keys]
@@ -645,6 +727,7 @@ def reddening(model,um,avs,extfactors):
 
     start=0
     end=len(um)
+    #pdb.set_trace()
 
     #print start,end
     for i in range(0,len(avs)):
@@ -658,7 +741,7 @@ def reddening(model,um,avs,extfactors):
             av = extfactors['av']
             model3[cmag][ix] = model2[cmag] + avs[i]*extfactors[ac]/av
 
-        keys = 'teff logg feh_act rad mass rho age dfeh dmass dage fdnu'.split()
+        keys = 'teff logg feh_act rad mass rho age dfeh dmass dage fdnu eep'.split()
         for key in keys:
             model3[key][ix]=model2[key]
 
@@ -669,7 +752,7 @@ def reddening(model,um,avs,extfactors):
     return model3
 
 # redden model given a reddening map
-def reddening_map(model, model_mabs, map, dustmodel, um, input, extfactors, 
+def reddening_map(model, model_mabs, redmap, dustmodel, um, input, extfactors, 
                   band):
 
     if (len(band) == 4):
@@ -685,10 +768,10 @@ def reddening_map(model, model_mabs, map, dustmodel, um, input, extfactors,
     lat_deg = gal.lat*180./np.pi
 
     # zero-reddening distance
-    dis = 10**((map-model_mabs[um]+5)/5.)
+    dis = 10**((redmap-model_mabs[um]+5)/5.)
     
     # This value contains fractional random errors in the reddening map for the Kepler field by comparisons between bayestar15 and bayestar17 maps:
-    redMapFracErr = 0.22092203269207672
+    #redMapFracErr = 0.22092203269207672
 
     # iterate distance and map a few times
     for i in range(0,1):
@@ -697,12 +780,13 @@ def reddening_map(model, model_mabs, map, dustmodel, um, input, extfactors,
         )
         fp = np.concatenate(([0.0],np.array(dustmodel.iloc[0][2:])))
         ebvs = np.interp(x=dis, xp=xp, fp = fp)
-        ebvs = ebvs + np.random.randn(len(ebvs))*np.median(ebvs)*redMapFracErr
+        #ebvs = ebvs + np.random.randn(len(ebvs))*np.median(ebvs)*redMapFracErr
         ext_band = extfactors['a'+bd]*ebvs	
-        dis=10**((map-ext_band-model_mabs[um]+5)/5.)
+        dis=10**((redmap-ext_band-model_mabs[um]+5)/5.)
 
     # if no models have been pre-selected (i.e. input is
     # photometry+parallax only), redden all models
+    #pdb.set_trace()
     if (len(um) == len(model['teff'])):
         model3 = copy.deepcopy(model)
 
@@ -722,7 +806,7 @@ def reddening_map(model, model_mabs, map, dustmodel, um, input, extfactors,
         keys = [
             'dage', 'dmass', 'dfeh', 'teff', 'logg', 'feh_act', 'rad', 'mass',
             'rho', 'age', 'gmag', 'rmag', 'imag', 'zmag', 'jmag', 'hmag', 
-            'bmag', 'vmag', 'btmag','vtmag', 'dis', 'kmag', 'avs', 'fdnu'
+            'bmag', 'vmag', 'btmag','vtmag', 'dis', 'kmag', 'avs', 'fdnu','eep'
         ]
         
         dtype = [(key, float) for key in keys]
@@ -734,8 +818,8 @@ def reddening_map(model, model_mabs, map, dustmodel, um, input, extfactors,
             model3[cmag] = model2[cmag] + extfactors[ac] * ebvs
 
         model3['dis']=dis
-        model3['avs']=extfactors['av']*ebvs	
-        keys = 'teff logg feh_act rad mass rho age dfeh dmass dage fdnu'.split()
+        model3['avs']=extfactors['av']*ebvs
+        keys = 'teff logg feh_act rad mass rho age dfeh dmass dage fdnu eep'.split()
         for key in keys:
             model3[key] = model2[key]
 
@@ -745,8 +829,8 @@ def reddening_map(model, model_mabs, map, dustmodel, um, input, extfactors,
 ######################################### misc stuff
 
 # calculate parallax for each model
-def redden(map, mabs, gl, gb, dust):
-    logd = (map-mabs+5.)/5.
+def redden(redmap, mabs, gl, gb, dust):
+    logd = (redmap-mabs+5.)/5.
     newd = logd
 
     for i in range(0,1):
@@ -754,7 +838,7 @@ def redden(map, mabs, gl, gb, dust):
         ebv = dust(gl,gb,cur/1000.)
         av = ebv*3.1
         aj = av*1.2348743
-        newd = (map-mabs-aj+5.)/5.
+        newd = (redmap-mabs-aj+5.)/5.
 
     s_newd = np.sqrt( (0.2*0.01)**2 + (0.2*0.03)**2 + (0.2*0.02)**2 )
     plx=1./(10**newd)

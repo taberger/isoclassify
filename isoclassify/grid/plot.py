@@ -4,10 +4,11 @@ import matplotlib.pyplot as plt
 import random
 from priors import *
 import fnmatch
+import pdb
 
 def plotinit():
     fig1 = plt.figure('posteriors',figsize=(8,12))
-    fig2 = plt.figure('hrd',figsize=(8,12))
+    fig2 = plt.figure('hrd',figsize=(12,12))
     plt.figure('posteriors')
  
 def plotposterior(x,y,res,err1,err2,names,j,ix,iy):
@@ -48,7 +49,7 @@ def plothrd(model,input,mabs,mabse,ix,iy):
     )
 
     plt.figure('hrd')
-    plt.subplot(2,3,1)
+    plt.subplot(2,4,1)
     frac=0.01
 
     ran=np.array(random.sample(range(len(model['teff'])),\
@@ -64,18 +65,17 @@ def plothrd(model,input,mabs,mabse,ix,iy):
              model['rmag'][ran[g]]-model['imag'][ran[g]],\
     '.',color='red',markersize=1,zorder=-32)
 
-    if ((input.gmag > -99) & (input.rmag > -99)):
-        plt.errorbar([input.gmag-input.rmag], [input.rmag-input.imag], \
-                 xerr=np.sqrt(input.gmage**2+input.rmage**2), \
-                 yerr=np.sqrt(input.rmage**2+input.image**2),color='green',elinewidth=5)
+    if ((input.gmag > -99) & (input.rmag > -99) & (input.imag > -99)):
+        plt.errorbar([input.gmag-input.rmag], [input.rmag-input.imag],xerr=np.sqrt(input.gmage**2+input.rmage**2),yerr=np.sqrt(input.rmage**2+input.image**2),color='green',elinewidth=5)
 
     plt.xlabel('g-r')
     plt.ylabel('r-i')
-    plt.xlim([-0.5,2.5])
-    plt.ylim([-0.5,2])
+    #plt.xlim([-0.5,2.5])
+    #plt.ylim([-0.5,2])
+    plt.autoscale()
 
 
-    ### Sloan color-color
+    '''### Sloan color-magnitude
     plt.subplot(2,3,2)
     d=np.where(model['logg'][ran] > 3.5)[0]
     plt.plot(model['gmag'][ran[d]]-model['rmag'][ran[d]],\
@@ -86,7 +86,7 @@ def plothrd(model,input,mabs,mabse,ix,iy):
              model['imag'][ran[g]]-model['zmag'][ran[g]],\
     '.',color='red',markersize=1,zorder=-32)
 
-    if ((input.imag > -99) & (input.zmag > -99)):
+    if ((input.gmag > -99) & (input.rmag > -99) & (input.imag > -99) & (input.zmag > -99)):
         plt.errorbar([input.gmag-input.rmag], [input.imag-input.zmag], \
                  xerr=np.sqrt(input.gmage**2+input.rmage**2), \
                  yerr=np.sqrt(input.image**2+input.zmage**2),color='green',elinewidth=5)
@@ -94,32 +94,10 @@ def plothrd(model,input,mabs,mabse,ix,iy):
     plt.xlabel('g-r')
     plt.ylabel('i-z')
     plt.xlim([-0.5,2.5])
-    plt.ylim([-0.5,2])
+    plt.ylim([-0.5,2])'''
     
-
-### Sloan color-color
-    plt.subplot(2,3,3)
-    d=np.where(model['logg'][ran] > 3.5)[0]
-    plt.plot(model['hmag'][ran[d]]-model['kmag'][ran[d]],\
-             model['jmag'][ran[d]]-model['hmag'][ran[d]],\
-    '.',color='blue',markersize=1,zorder=-32)
-    g=np.where(model['logg'][ran] < 3.5)[0]
-    plt.plot(model['hmag'][ran[g]]-model['kmag'][ran[g]],\
-             model['jmag'][ran[g]]-model['hmag'][ran[g]],\
-    '.',color='red',markersize=1,zorder=-32)
-
-    if ((input.jmag > -99) & (input.hmag > -99)):
-        plt.errorbar([input.hmag-input.kmag], [input.jmag-input.hmag], \
-                 xerr=np.sqrt(input.hmage**2+input.kmage**2), \
-                 yerr=np.sqrt(input.jmage**2+input.hmage**2),color='green',elinewidth=5)
-
-    plt.xlabel('H-K')
-    plt.ylabel('J-H')
-    plt.xlim([-0.1,0.5])
-    plt.ylim([-0.3,1.3])
-    
-    ### 2MASS color-color
-    plt.subplot(2,3,4)
+    ### BtVtJH color-color
+    plt.subplot(2,4,2)
     plt.plot(model['btmag'][ran[d]]-model['vtmag'][ran[d]],\
              model['jmag'][ran[d]]-model['hmag'][ran[d]],\
     '.',color='blue',markersize=1,zorder=-32)
@@ -129,21 +107,87 @@ def plothrd(model,input,mabs,mabse,ix,iy):
              model['jmag'][ran[g]]-model['hmag'][ran[g]],\
     '.',color='red',markersize=1,zorder=-32)
     
-    if ((input.vtmag > -99) & (input.btmag > -99)):
+    if ((input.jmag > -99) & (input.hmag > -99) & (input.vtmag > -99) & (input.btmag > -99)):
         plt.errorbar([input.btmag-input.vtmag], [input.jmag-input.hmag], \
                  xerr=np.sqrt(input.btmage**2+input.vtmage**2), \
                  yerr=np.sqrt(input.jmage**2+input.hmage**2),color='green',elinewidth=5)
 
     plt.xlabel('Bt-Vt')
     plt.ylabel('J-H')
+    plt.autoscale()
+
+    ### 2MASS JHK color-color
+    plt.subplot(2,4,3)
+    d=np.where(model['logg'][ran] > 3.5)[0]
+    plt.plot(model['hmag'][ran[d]]-model['kmag'][ran[d]],\
+             model['jmag'][ran[d]]-model['hmag'][ran[d]],\
+    '.',color='blue',markersize=1,zorder=-32)
+    g=np.where(model['logg'][ran] < 3.5)[0]
+    plt.plot(model['hmag'][ran[g]]-model['kmag'][ran[g]],\
+             model['jmag'][ran[g]]-model['hmag'][ran[g]],\
+    '.',color='red',markersize=1,zorder=-32)
+
+    if ((input.jmag > -99) & (input.hmag > -99) & (input.kmag > -99)):
+        plt.errorbar([input.hmag-input.kmag], [input.jmag-input.hmag], \
+                 xerr=np.sqrt(input.hmage**2+input.kmage**2), \
+                 yerr=np.sqrt(input.jmage**2+input.hmage**2),color='green',elinewidth=5)
+
+    plt.xlabel('H-K')
+    plt.ylabel('J-H')
+    plt.autoscale()
+    #plt.xlim([-0.1,0.5])
+    #plt.ylim([-0.3,1.3])
+
+    # 2MASS K, g-r CMD
+    plt.subplot(2,4,4)
+    mag1='gmag'
+    mag2='rmag'
+    absmag='kmag'
+    col=input.gmag - input.rmag
+    cole=np.sqrt(input.gmage**2+input.rmage**2)
+
+    plt.plot(model[mag1][ran[d]]-model[mag2][ran[d]],\
+             model[absmag][ran[d]],'.',color='blue',markersize=1,zorder=-32)
+
+    plt.plot(model[mag1][ran[g]]-model[mag2][ran[g]], \
+             model[absmag][ran[g]],'.',color='red',markersize=1,zorder=-32)
+
+    if ((input.plx > 0.) & (input.kmag > -99) & (input.gmag > -99) & (input.rmag > -99)):
+        plt.errorbar([col], [mabs], xerr=cole, yerr=mabse,color='green',elinewidth=5)
+
+    #plt.xlim([np.min(model[absmag]),np.max(model[absmag])])
+    #plt.ylim([np.max(model[absmag]),np.min(model[absmag])])
+    plt.autoscale()
+    plt.gca().invert_yaxis()
+    plt.xlabel(mag1+'-'+mag2)
+    plt.ylabel(absmag)
+
+    # 2MASS k, g-K CMD
+    plt.subplot(2,4,5)
+    mag1='gmag'
+    mag2='kmag'
+    absmag='kmag'
+    col=input.gmag - input.kmag
+    cole=np.sqrt(input.gmage**2+input.kmage**2)
+
+    plt.plot(model[mag1][ran[d]]-model[mag2][ran[d]],\
+             model[absmag][ran[d]],'.',color='blue',markersize=1,zorder=-32)
+
+    plt.plot(model[mag1][ran[g]]-model[mag2][ran[g]], \
+             model[absmag][ran[g]],'.',color='red',markersize=1,zorder=-32)
+
+    if ((input.plx > 0.) & (input.kmag > -99) & (input.gmag > -99)):
+        plt.errorbar([col], [mabs], xerr=cole, yerr=mabse,color='green',elinewidth=5)
+
+    #plt.xlim([np.min(model[absmag]),np.max(model[absmag])])
+    #plt.ylim([np.max(model[absmag]),np.min(model[absmag])])
+    plt.autoscale()
+    plt.gca().invert_yaxis()
+    plt.xlabel(mag1+'-'+mag2)
+    plt.ylabel(absmag)
     
-    # CMD
-    plt.subplot(2,3,5)
-    mag1='bmag'
-    mag2='vmag'
-    absmag='vmag'
-    col=0.
-    cole=0.
+    # 2MASS J, J-K CMD
+    plt.subplot(2,4,6)
     
     if (input.vmag > 0):
         mag1='bmag'
@@ -155,7 +199,7 @@ def plothrd(model,input,mabs,mabse,ix,iy):
     if (input.vtmag > 0):
         mag1='btmag'
         mag2='vtmag'
-        absmag='vtmag'
+        absmag='kmag'
         col=input.btmag-input.vtmag
         cole=np.sqrt(input.btmage**2+input.vtmage**2)
 
@@ -169,7 +213,7 @@ def plothrd(model,input,mabs,mabse,ix,iy):
     if (input.jmag > 0):
         mag1='jmag'
         mag2='kmag'
-        absmag='jmag'
+        absmag='kmag'
         col=input.jmag-input.kmag
         cole=np.sqrt(input.jmage**2+input.kmage**2)
 
@@ -179,7 +223,7 @@ def plothrd(model,input,mabs,mabse,ix,iy):
     plt.plot(model[mag1][ran[g]]-model[mag2][ran[g]], \
              model[absmag][ran[g]],'.',color='red',markersize=1,zorder=-32)
 
-    if (input.plx > 0.):
+    if ((input.plx > 0.) & (input.kmag > -99)):
         plt.errorbar([col], [mabs], xerr=cole, yerr=mabse,color='green',elinewidth=5)
 
     plt.xlim([-0.5,2])
@@ -187,19 +231,46 @@ def plothrd(model,input,mabs,mabse,ix,iy):
     plt.xlabel(mag1+'-'+mag2)
     plt.ylabel(absmag)
 
-    # HRD
-    plt.subplot(2,3,6)
+    # 2MASS k, Vt-K CMD
+    plt.subplot(2,4,7)
+    mag1='vtmag'
+    mag2='kmag'
+    absmag='kmag'
+    col=input.vtmag - input.kmag
+    cole=np.sqrt(input.vtmage**2+input.kmage**2)
 
-    if (input.numax == 0):
+    plt.plot(model[mag1][ran[d]]-model[mag2][ran[d]],\
+             model[absmag][ran[d]],'.',color='blue',markersize=1,zorder=-32)
+
+    plt.plot(model[mag1][ran[g]]-model[mag2][ran[g]], \
+             model[absmag][ran[g]],'.',color='red',markersize=1,zorder=-32)
+
+    if ((input.plx > 0.) & (input.kmag > -99) & (input.vtmag > -99)):
+        plt.errorbar([col], [mabs], xerr=cole, yerr=mabse,color='green',elinewidth=5)
+
+    #plt.xlim([np.min(model[absmag]),np.max(model[absmag])])
+    #plt.ylim([np.max(model[absmag]),np.min(model[absmag])])
+    plt.autoscale()
+    plt.gca().invert_yaxis()
+    plt.xlabel(mag1+'-'+mag2)
+    plt.ylabel(absmag)
+
+    # HRD
+    plt.subplot(2,4,8)
+
+    if (input.numax == -99):
         plt.plot(model['teff'][ran[d]],model['logg'][ran[d]],\
                  '.',color='blue',markersize=1,zorder=-32)
         plt.xlim([10000,2000])
         plt.ylim([6,0])
+	plt.yscale('linear')
         plt.plot(model['teff'][ran[g]],model['logg'][ran[g]],\
                  '.',color='red',markersize=1,zorder=-32)
 
         plt.errorbar([input.teff], [input.logg], xerr=input.teffe, yerr=input.logge, \
                  color='green',elinewidth=5)
+	plt.xlabel('teff')
+	plt.ylabel('logg')
 
     else:
         mod_numax=3090*(10**model['logg']/27420.)*(model['teff']/5777.)**(-0.5)
@@ -212,6 +283,7 @@ def plothrd(model,input,mabs,mabse,ix,iy):
 
         plt.errorbar([input.teff], [input.numax], xerr=input.teffe, yerr=input.numaxe, \
                  color='green',elinewidth=5)
+    plt.tight_layout()
 
 def plothrdold(model,grcol,ricol,grcole,ricole,Mg,Mge,ix,iy):
 

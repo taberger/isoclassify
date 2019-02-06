@@ -61,6 +61,7 @@ class Pipeline(object):
         star = df.ix[self.id_starname]
 
         self.dust = star.dust
+	self.evstate = star.evstate
 
         const = {}
         for key in CONSTRAINTS:
@@ -76,7 +77,7 @@ class Pipeline(object):
                 const[key] = star[key]
             else:
                 const[key] = -99
-        
+	
         self.const = const
         self.const['ra'] = star['ra']
         self.const['dec'] = star['dec']
@@ -136,9 +137,13 @@ class Pipeline(object):
     def addcoords(self,x):
         x.addcoords(self.const['ra'], self.const['dec'])
 
+    def addevstate(self,x):
+	x.addevstate(self.evstate)
+
     def print_constraints(self):
         print "id_starname {}".format(self.id_starname)
         print "dust:", self.dust
+	print "evstate:", self.evstate
         for key in CONSTRAINTS:
             print key, self.const[key], self.const[key+'_err']
 
@@ -212,6 +217,10 @@ class PipelineDirect(Pipeline):
             )
             ext = extinction('schlafly16')
 
+	if self.dust == 'zero':
+	    dustmodel = query_dustmodel_coords_noredd(self.const['ra'],self.const['dec'])
+	    ext = extinction('cardelli')
+
         if self.dust == 'none':
             dustmodel = 0
             ext = extinction('cardelli')
@@ -234,13 +243,14 @@ class PipelineGrid(Pipeline):
         'iso_age':'age',
         'iso_avs':'avs',
         'iso_dis':'dis',
-        'iso_feh':'feh',
+        'iso_feh':'feh_act',
         'iso_mass':'mass',
         'iso_rad':'rad',
         'iso_lum':'lum',
         'iso_logg':'logg',
         'iso_rho': 'rho',
         'iso_teff':'teff',
+	'iso_gof':'gof',
     }
     def run(self):
         self.print_constraints()
@@ -259,6 +269,9 @@ class PipelineGrid(Pipeline):
         if self.dust == 'green18':
             dustmodel = query_dustmodel_coords(self.const['ra'],self.const['dec'])
             ext = extinction('schlafly16')
+	if self.dust == 'zero':
+	    dustmodel = query_dustmodel_coords_noredd(self.const['ra'],self.const['dec'])
+	    ext = extinction('cardelli')
         if self.dust == 'none':
             dustmodel = 0
             ext = extinction('cardelli')
@@ -273,6 +286,7 @@ class PipelineGrid(Pipeline):
         self.addbvt(x)
         self.addseismo(x)
         self.addplx(x)
+	self.addevstate(x)
         self.paras = classify_grid.classify(
             input=x, model=model, dustmodel=dustmodel,ext=ext, 
             plot=self.plot, useav=0

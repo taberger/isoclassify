@@ -35,6 +35,21 @@ def query_dustmodel_coords_allsky(ra,dec):
 
     return dustModelDF
 
+def query_dustmodel_coords_noredd(ra,dec):
+    reddenMap = mwdust.Zero()
+    sightLines = SkyCoord(ra*units.deg,dec*units.deg,frame='galactic')
+    distanceSamples = np.loadtxt("isoclassify/data/distance-samples-green18.txt",delimiter=',')*1000. # Here this is just a container to keep the format of the code the same regardless of the utilized map. The combined map is *NOT* 3D, so the reddening should be the same at every distance.
+    reddenContainer=reddenMap(sightLines.l.value,sightLines.b.value,distanceSamples/1000.)
+    
+    del reddenMap # To clear reddenMap from memory
+    
+    dustModelDF = pd.DataFrame({'ra': [ra], 'dec': [dec]})
+    
+    for index in xrange(len(reddenContainer)):
+        dustModelDF['av_'+str(round(distanceSamples[index],6))] = reddenContainer[index]
+
+    return dustModelDF
+
 # R_lambda values to convert E(B-V) given by dustmaps to extinction in
 # a given passband.  The two main caveats with this are: - strictly
 # speaking only cardelli is consistent with the BC tables used in the
