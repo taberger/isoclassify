@@ -1,5 +1,8 @@
 id_starname,teff,teff_err,logg,logg_err,feh,feh_err,parallax,parallax_err,vmag,vmag_err,kmag,kmag_err,ra,dec,band,dust,comments
-sol,5772,70,4.44,0.07,0,0.04,0.1,0.001,-99,-99,3.302,0.01,,,kmag,none,"should return 1 solar radius; ra,dec not needed because no dust map "
+sol_old,5772,70,4.44,0.07,0,0.04,0.1,0.001,-99,-99,3.302,0.01,,,kmag,none,"should return 1 solar radius; ra,dec not needed because no dust map"
 K2-3,3825,70,4.7,1,-0.27,0.09,0.022661,5.53E-05,-99,-99,8.561,0.023,172.334955,-1.454787,kmag,green18,using very loose logg constraints
 K2-24,5625,100,4.29,0.08,0.34,0.04,0.005835,0.000046,-99,-99,9.18,0.021,242.573715,-24.990331,kmag,green18,
 18sco,5770,70,4.44,0.07,0,0.04,0.07,0.007,5.505,0.014,4,0.03,290.1122,44.6,kmag,green18,18sco with colors
+sol,5772,10,4.44,0.01,0.0,0.01,-99.0,-99.000,-99,-99,-99.0,-99.0,,,kmag,none,"should return 1 solar radius; ra,dec not needed because no dust map"
+piMen,5870,100,4.33,0.09,0.05,0.09,0.054705,0.0000671,5.65,0.01,4.241,0.027,84.2911880011,-80.4691198187,kmag,allsky,"for testing"
+kic8263801,4838.0,96.76,2.662,0.03,0.27,0.15,0.000578,0.00002,,,9.6,.027,300.79559,44.12668,kmag,green18,"testing"

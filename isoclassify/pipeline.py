@@ -2,6 +2,7 @@ import os
 import copy
 import glob
 import h5py
+import pdb
 
 import numpy as np
 from matplotlib import pylab as plt
@@ -14,17 +15,23 @@ from isoclassify.extinction import *
 from isoclassify import DATADIR
 
 CONSTRAINTS = [
-    'teff','logg','feh','gmag','rmag','imag','zmag','jmag','hmag','kmag',
+    'teff','logg','feh','umag','gmag','rmag','imag','zmag',
+    'jmag','hmag','kmag','gamag','bpmag','rpmag',
     'parallax', 'bmag','vmag', 'btmag','vtmag','numax','dnu'
 ]
 
 COORDS = ['ra','dec']
 
 def run(**kw):
-    if kw['method']=='direct':
-        pipe = PipelineDirect(**kw)    
-    elif kw['method']=='grid':
-        pipe = PipelineGrid(**kw) 
+    if (kw['method']=='direct'):        
+	pipe = PipelineDirect(**kw)
+    elif (kw['method']=='grid'):
+        pipe = PipelineGrid(**kw)
+	runDir = pipe.check() # To check if star of interest is an M-dwarf. If so, run direct:
+	if runDir:
+	    pipe = PipelineDirect(**kw)
+    elif (kw['method']=='griddust'):
+	pipe = PipelineGridDustBatch(**kw)
     else:
         assert False, "method {} not supported ".format(kw['method'])
 
@@ -36,6 +43,7 @@ def run(**kw):
     elif pipe.plotmode.count('save')==1:
         pipe.savefig()
 
+    pipe.to_pstf()
     pipe.to_csv()
 
 class Pipeline(object):
@@ -62,6 +70,7 @@ class Pipeline(object):
 
         self.dust = star.dust
 	self.evstate = star.evstate
+	self.mdwarfbool = star.mdwarfbool
 
         const = {}
         for key in CONSTRAINTS:
@@ -98,11 +107,17 @@ class Pipeline(object):
         err = [self.const[key+'_err'] for key in keys]
         x.addjhk(val,err)
 
-    def addgriz(self,x):
-        keys = 'gmag rmag imag zmag'.split()
+    def addgabprp(self,x):
+        keys = 'gamag bpmag rpmag'.split()
         val = [self.const[key] for key in keys]
         err = [self.const[key+'_err'] for key in keys]
-        x.addgriz(val,err)
+        x.addgabprp(val,err)
+
+    def addugriz(self,x):
+        keys = 'umag gmag rmag imag zmag'.split()
+        val = [self.const[key] for key in keys]
+        err = [self.const[key+'_err'] for key in keys]
+        x.addugriz(val,err)
         
     def addbvt(self,x):
         keys = 'btmag vtmag'.split()
@@ -140,16 +155,24 @@ class Pipeline(object):
     def addevstate(self,x):
 	x.addevstate(self.evstate)
 
+    def addmdwarfbool(self,x):
+	x.addmdwarfbool(self.mdwarfbool)
+
+    def addoutdir(self,x):
+	x.addoutdir(self.outdir)
+
     def print_constraints(self):
         print "id_starname {}".format(self.id_starname)
         print "dust:", self.dust
 	print "evstate:", self.evstate
+	print "mdwarfbool:", self.mdwarfbool
         for key in CONSTRAINTS:
             print key, self.const[key], self.const[key+'_err']
 
         for key in COORDS:
             print key, self.const[key]
-            
+           
+
     def savefig(self):
         labels = plt.get_figlabels()
         _, ext = self.plotmode.split('-')
@@ -159,7 +182,11 @@ class Pipeline(object):
             fig.set_tight_layout(True)
             plt.savefig(fn)
             print "created {}".format(fn)
-
+    
+    def to_pstf(self):
+	for outcol,incol in self.outputcols.items():
+	    np.savetxt(self.outdir +'/' + outcol+'_post.txt',(getattr(self.paras,incol + 'px'),getattr(self.paras,incol + 'py')))
+	
     def to_csv(self):
         out = {}
         out['id_starname'] = self.id_starname
@@ -197,6 +224,8 @@ class PipelineDirect(Pipeline):
         'dir_lum': 'lum',
         'dir_teff': 'teff',
         'dir_mabs': 'mabs',
+	'dir_mass': 'mass',
+	'dir_rho': 'rho'
     }
     
     def run(self):
@@ -204,12 +233,20 @@ class PipelineDirect(Pipeline):
 
         fn = os.path.join(DATADIR,'bcgrid.h5')
         bcmodel = h5py.File(fn,'r', driver='core', backing_store=False)
+	if self.dust == 'green18':
+	    self.dust = 'green19'
         
         if self.dust == 'allsky':
             dustmodel = query_dustmodel_coords_allsky(
                 self.const['ra'],self.const['dec']
             )
             ext = extinction('cardelli')
+
+	if self.dust == 'green19':
+            dustmodel = query_dustmodel_coords_green19(
+                self.const['ra'],self.const['dec']
+            )
+            ext = extinction('green19')
 
         if self.dust == 'green18':
             dustmodel = query_dustmodel_coords(
@@ -227,12 +264,17 @@ class PipelineDirect(Pipeline):
 
         x = classify_direct.obsdata()
         self.addspec(x)
+	self.addugriz(x)
         self.addjhk(x)
         self.addbv(x)
         self.addbvt(x)
+	self.addgabprp(x)
         self.addplx(x)
         self.addcoords(x)
         self.addmag(x)
+	self.addevstate(x)
+	self.addmdwarfbool(x)
+	self.addoutdir(x)
         self.paras = classify_direct.stparas(
             input=x, bcmodel=bcmodel, dustmodel=dustmodel, 
             band=self.const['band'], ext=ext, plot=1
@@ -252,6 +294,12 @@ class PipelineGrid(Pipeline):
         'iso_teff':'teff',
 	'iso_gof':'gof',
     }
+
+    def check(self):
+	if self.mdwarfbool == True:
+	    print "M-dwarf detected. Running direct version of the code."
+	    return True
+
     def run(self):
         self.print_constraints()
 
@@ -263,11 +311,82 @@ class PipelineGrid(Pipeline):
         model['avs']=np.zeros(len(model['teff']))
         model['dis']=np.zeros(len(model['teff']))
 
+	if self.dust == 'green18':
+	    self.dust = 'green19'
+
         if self.dust == 'allsky':
             dustmodel = query_dustmodel_coords_allsky(self.const['ra'],self.const['dec'])
             ext = extinction('cardelli')
+	if self.dust == 'green19':
+	    dustmodel = query_dustmodel_coords_green19(self.const['ra'],self.const['dec'])
+	    ext = extinction('green19')
         if self.dust == 'green18':
             dustmodel = query_dustmodel_coords(self.const['ra'],self.const['dec'])
+            ext = extinction('schlafly16')
+	if self.dust == 'zero':
+	    dustmodel = query_dustmodel_coords_noredd(self.const['ra'],self.const['dec'])
+	    ext = extinction('green19')
+        if self.dust == 'none':
+            dustmodel = 0
+            ext = extinction('cardelli')
+            
+        # Instantiate model
+        x = classify_grid.obsdata()
+        self.addcoords(x)
+        self.addspec(x)
+        self.addjhk(x)
+        self.addugriz(x)
+        self.addbv(x)
+        self.addbvt(x)
+	self.addgabprp(x)
+        self.addseismo(x)
+        self.addplx(x)
+	self.addevstate(x)
+	self.addmdwarfbool(x)
+	self.addoutdir(x)
+        self.paras = classify_grid.classify(
+            input=x, model=model, dustmodel=dustmodel,ext=ext, 
+            plot=self.plot, useav=0
+        )
+
+class PipelineGridDustBatch(Pipeline):
+    outputcols = {
+        'iso_age':'age',
+        'iso_avs':'avs',
+        'iso_dis':'dis',
+        'iso_feh':'feh_act',
+        'iso_mass':'mass',
+        'iso_rad':'rad',
+        'iso_lum':'lum',
+        'iso_logg':'logg',
+        'iso_rho': 'rho',
+        'iso_teff':'teff',
+	'iso_gof':'gof',
+    }
+
+    def check(self):
+	if self.mdwarfbool == True:
+	    print "M-dwarf detected. Running direct version of the code."
+	    return True
+
+    def run(self):
+        self.print_constraints()
+
+        model = ebf.read(os.path.join(DATADIR,'mesa.ebf'))
+        # prelims to manipulate some model variables (to be automated soon ...)
+        model['rho'] = np.log10(model['rho'])
+        # next line turns off Dnu scaling relation corrections
+        model['fdnu'][:]=1.
+        model['avs']=np.zeros(len(model['teff']))
+        model['dis']=np.zeros(len(model['teff']))
+        if self.dust == 'allsky':
+            dustmodel = query_dustmodel_coords_allsky(self.const['ra'],self.const['dec'])
+            ext = extinction('cardelli')
+	if self.dust == 'green19':
+	    dustmodel = query_dustmodel_coords_dustbatch(self.id_starname)
+	    ext = extinction('green19')
+        if self.dust == 'green18':
+            dustmodel = query_dustmodel_coords_dustbatch(self.id_starname)
             ext = extinction('schlafly16')
 	if self.dust == 'zero':
 	    dustmodel = query_dustmodel_coords_noredd(self.const['ra'],self.const['dec'])
@@ -281,19 +400,22 @@ class PipelineGrid(Pipeline):
         self.addcoords(x)
         self.addspec(x)
         self.addjhk(x)
-        self.addgriz(x)
+        self.addugriz(x)
         self.addbv(x)
         self.addbvt(x)
+	self.addgabprp(x)
         self.addseismo(x)
         self.addplx(x)
 	self.addevstate(x)
+	self.addmdwarfbool(x)
+	self.addoutdir(x)
         self.paras = classify_grid.classify(
             input=x, model=model, dustmodel=dustmodel,ext=ext, 
             plot=self.plot, useav=0
         )
 
 def _csv_reader(f):
-    row = pd.read_csv(f,header=None,squeeze=True, index_col=0)
+    row = pd.read_csv(f,header=None,squeeze=True,index_col=0)
     return row
 
 def scrape_csv(path):

@@ -5,10 +5,11 @@ import ephem
 import pandas as pd
 import numpy as np
 from astropy.io import ascii
+from scipy.interpolate import interp1d
 
 from pdf import *  # part of isoclassify package (to do make explicit import) 
 from priors import * # part of isoclassify package (to do make explicit import) 
-from .plot import * # part of isoclassify package (to do make explicit import) 
+from .plot import * # part of isoclassify package (to do make explicit import)
 
 class obsdata():
     def __init__(self):
@@ -32,6 +33,8 @@ class obsdata():
         self.vtmag = -99.0
         self.vtmage = -99.0
 
+	self.umag = -99.0
+	self.umage = -99.0
         self.gmag = -99.0
         self.gmage = -99.0
         self.rmag = -99.0
@@ -40,12 +43,17 @@ class obsdata():
         self.image = -99.0
         self.zmag = -99.0
         self.zmage = -99.0
+
         self.jmag = -99.0
         self.jmage = -99.0
         self.hmag = -99.0
         self.hmage = -99.0
         self.kmag = -99.0
         self.kmage = -99.0
+
+	self.gamag = -99.0
+	self.bpmag = -99.0
+	self.rpmag = -99.0
         
         self.numax = -99.0
         self.numaxe = -99.0
@@ -53,6 +61,10 @@ class obsdata():
         self.dnue = -99.0
 
 	self.evstate = -99.0
+	self.mdwarfbool = -99.0
+	self.outdir = ''
+
+	self.reddenmap = -99.0
                    
     def addspec(self,value,sigma):
         self.teff = value[0]
@@ -74,15 +86,17 @@ class obsdata():
         self.vtmag = value[1]
         self.vtmage = sigma[1]
         
-    def addgriz(self,value,sigma):
-        self.gmag = value[0]
-        self.gmage = sigma[0]
-        self.rmag = value[1]
-        self.rmage = sigma[1]
-        self.imag = value[2]
-        self.image = sigma[2]
-        self.zmag = value[3]
-        self.zmage = sigma[3]
+    def addugriz(self,value,sigma):
+	self.umag = value[0]
+	self.umage = sigma[0]
+        self.gmag = value[1]
+        self.gmage = sigma[1]
+        self.rmag = value[2]
+        self.rmage = sigma[2]
+        self.imag = value[3]
+        self.image = sigma[3]
+        self.zmag = value[4]
+        self.zmage = sigma[4]
         
     def addjhk(self,value,sigma):
         self.jmag = value[0]
@@ -91,6 +105,14 @@ class obsdata():
         self.hmage = sigma[1]
         self.kmag = value[2]
         self.kmage = sigma[2]
+
+    def addgabprp(self,value,sigma):
+        self.gamag = value[0]
+        self.gamage = sigma[0]
+        self.bpmag = value[1]
+        self.bpmage = sigma[1]
+        self.rpmag = value[2]
+        self.rpmage = sigma[2]
         
     def addplx(self,value,sigma):
         self.plx = value
@@ -108,6 +130,12 @@ class obsdata():
 
     def addevstate(self,value):
 	self.evstate = value
+
+    def addmdwarfbool(self,value):
+	self.mdwarfbool = value
+
+    def addoutdir(self,value):
+	self.outdir = value
 
 class resdata():
     def __init__(self):
@@ -225,6 +253,12 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
     hkcol = input.hmag - input.kmag
     gkcol = input.gmag - input.kmag
     vtkcol = input.vtmag - input.kmag
+    #rkcol = input.rmag - input.kmag
+    gacol = input.gamag - input.kmag
+    brpcol = input.bpmag - input.rpmag
+    bpkcol = input.bpmag - input.kmag
+    rjcol = input.rmag - input.jmag
+
     bvcole = np.sqrt(input.bmage**2 + input.vmage**2)
     bvtcole = np.sqrt(input.btmage**2 + input.vtmage**2)
     grcole = np.sqrt(input.gmage**2 + input.rmage**2)
@@ -234,9 +268,36 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
     hkcole = np.sqrt(input.hmage**2 + input.kmage**2)
     gkcole = np.sqrt(input.gmage**2 + input.kmage**2)
     vtkcole = np.sqrt(input.vtmage**2 + input.kmage**2)
+    #rkcole = np.sqrt(input.rmage**2 + input.kmage**2)
+    gakcole = np.sqrt(input.gamage**2 + input.kmage**2)
+    brpcole = np.sqrt(input.bpmage**2 + input.rpmage**2)
+    bpkcole = np.sqrt(input.bpmage**2 + input.kmage**2)
+    rjcole = np.sqrt(input.rmage**2 + input.jmage**2)
 
-    # determine apparent mag to use for distance estimation. K>J>g>Vt>V
+    # Compute extra color error term based on underestimation of stellar teff errors with nominal 2% error floor:
+    if ((input.gmag > -99.0) & (input.kmag > -99.0)):
+        gkexcole = compute_extra_gk_color_error(gkcol)
+	# Determine which gK error term is greater and use that one:
+        print "g - K error from photometry: ",gkcole
+        print "g - K error from best-fit polynomial: ",gkexcole
+        gkcole = max(gkcole,gkexcole)
+        print "Using g - K error: ",gkcole
+    #rjexcole = compute_extra_rj_color_error(rjcol) 
+
+    # Determine which rj error term is greater and use that one:
+    #print "r - J error from photometry: ",rjcole
+    #print "r - J error from best-fit polynomial: ",rjexcole
+    #rjcole = max(rjcole,rjexcole)
+    #print "Using r - J error: ",rjcole
+
+    # determine apparent mag to use for distance estimation. K>J>G>Vt>V>g
     redmap = -99.0
+    if (input.gmag > -99.0):
+        redmap = input.gmag
+        mape = input.gmage
+        model_mabs = model['gmag']   
+        band = 'g'
+
     if (input.vmag > -99.0):
         redmap = input.vmag
         mape = input.vmage
@@ -249,11 +310,11 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
         model_mabs = model['vtmag']
         band = 'vt'
 
-    if (input.gmag > -99.0):
-        redmap = input.gmag
-        mape = input.gmage
-        model_mabs = model['gmag']   
-        band = 'g'
+    if (input.gamag > -99.0):
+	redmap = input.gamag
+	mape = input.gamage
+	model_mabs = model['gamag']
+	band = 'ga'
 	
     if (input.jmag > -99.0):
         redmap = input.jmag
@@ -274,6 +335,15 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
             (-5.0 / (input.plx * np.log(10)))**2 * input.plxe**2 
             + mape**2 + bcerr**2
         )
+	# Also compute extra error term for M-dwarfs with K band mags only:
+	if (mabs > 4.0) and (input.gmag - input.kmag > 4.0):
+	    mabseex = compute_extra_MK_error(mabs)
+
+	    # Determine which gK error term is greater and use that one:
+            print "M_K from photometry: ",mabse
+            print "M_K error from best-fit polynomial: ",mabseex
+            mabse = np.sqrt(mabse**2 + mabseex**2)
+            print "After adding in quadrature, using M_K error: ",mabse
     else:
         mabs = -99.0
         mabse = -99.0
@@ -461,6 +531,20 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
             ut = ut[0]
             um = np.intersect1d(um,ut)
 
+        #if ((input.rmag > -99.0) & (input.kmag > -99.0) & ():
+        #    ut = np.where(
+        #        (mod['rmag'] - mod['kmag'] > rkcol - sig*rkcole) 
+        #        & (mod['rmag'] - mod['kmag'] < rkcol + sig*rkcole))
+        #    ut = ut[0]
+        #    um = np.intersect1d(um,ut)
+
+	if ((input.rmag > -99.0) & (input.jmag > -99.0)):
+            ut = np.where(
+                (mod['rmag'] - mod['jmag'] > rjcol - sig*rjcole) 
+                & (mod['rmag'] - mod['jmag'] < rjcol + sig*rjcole))
+            ut = ut[0]
+            um = np.intersect1d(um,ut)
+
     #pdb.set_trace()
     print 'number of models after phot constraints:',len(um)
     print '----'
@@ -539,6 +623,20 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
         lh_vtk = np.ones(len(um))
 	diff_vtk = 1.0
 
+    if ((input.rmag > -99.0) & (input.kmag > -99.0)):
+        lh_rk = gaussian(rkcol, mod['rmag'][um]-mod['kmag'][um], rkcole)
+    	diff_rk = np.max(lh_rk)
+    else:
+        lh_rk = np.ones(len(um))
+        diff_rk = 1.0
+
+    if ((input.rmag > -99.0) & (input.jmag > -99.0)):
+        lh_rj = gaussian(rjcol, mod['rmag'][um]-mod['jmag'][um], rjcole)
+	diff_rj = np.max(lh_rj)
+    else:
+        lh_rj = np.ones(len(um))
+	diff_rj = 1.0
+
     if (input.teff > -99):
         lh_teff = gaussian(input.teff, mod['teff'][um], input.teffe)
 	diff_teff = np.max(lh_teff)
@@ -561,7 +659,19 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
 	diff_feh = 1.0
 
     if (input.plx > -99.0):
-        lh_mabs = np.exp( (-1./(2.*input.plxe**2))*(input.plx-1./mod['dis'][um])**2)
+        #lh_mabs = np.exp( (-1./(2.*input.plxe**2))*(input.plx-1./mod['dis'][um])**2)
+	#lh_mag = gaussian(mabs,mod_mabs[um],mabse) # Added because this error was not previously included
+	#disarr = np.linspace(min(mod['dis'][um]),max(mod['dis'][um]),10000)
+	#fdis = interp1d(mod['dis'][um],lh_dis)
+	#fmag = interp1d(mod['dis'][um],lh_mag)
+	#conv_lh = np.convolve(fdis(disarr),fmag(disarr),'same')
+	#flh = interp1d(disarr,conv_lh)
+	#lh_mabs = flh(mod['dis'][um])/max(flh(mod['dis'][um]))
+	#pdb.set_trace()
+	#lh_mabs = lh_dis*lh_mag
+	mabsIndex = np.argmax(np.exp( (-1./(2.*input.plxe**2))*(input.plx-1./mod['dis'][um])**2))
+	downSelMagArr = mod_mabs[um]
+	lh_mabs = gaussian(downSelMagArr[mabsIndex],mod_mabs[um],mabse) 
 	diff_mabs = np.max(lh_mabs)
 
         #if (input.plxe/input.plx < 0.1):
@@ -588,10 +698,10 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
     else:
         lh_numax = np.ones(len(um))
 
-    tlh = (lh_gr*lh_ri*lh_iz*lh_jh*lh_hk*lh_bv*lh_bvt*lh_gk*lh_vtk*lh_teff*lh_logg*lh_feh
+    tlh = (lh_gr*lh_ri*lh_iz*lh_jh*lh_hk*lh_bv*lh_bvt*lh_gk*lh_vtk*lh_rk*lh_rj*lh_teff*lh_logg*lh_feh
            *lh_mabs*lh_dnu*lh_numax)
 
-    gof_metric = diff_gr*diff_ri*diff_iz*diff_jh*diff_hk*diff_bv*diff_bvt*diff_gk*diff_vtk*diff_mabs*diff_teff*diff_logg*diff_feh
+    gof_metric = diff_gr*diff_ri*diff_iz*diff_jh*diff_hk*diff_bv*diff_bvt*diff_gk*diff_vtk*diff_rk*diff_rj*diff_mabs*diff_teff*diff_logg*diff_feh
 
         
     # metallicity prior (only if no FeH input is given)
@@ -599,6 +709,17 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
         fprior = np.ones(len(um))
     else:
         fprior = fehprior(mod['feh_act'][um])
+
+    # age prior (for eric target only):
+    #if (input.id_starname == 'K2100'):
+    #ageprior = gaussian(.79,mod['age'][um],0.03)
+    #radprior = gaussian(1.215,mod['rad'][um],0.032)
+    #massprior = gaussian(1.200,mod['mass'][um],0.035)
+    #pdb.set_trace()
+    #else:
+	#ageprior = np.ones(len(um))
+	#radprior = np.ones(len(um))
+	#massprior = np.ones(len(um))
     
     # distance prior
     if (input.plx > -99.0):
@@ -616,8 +737,9 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
     evprior = np.where((mod['eep'][um] >= 631) & (mod['eep'][um] <= 707) & (input.evstate == 'RGB'),0.0,evprior)
 
     # posterior
-    prob = fprior*dprior*tprior*tlh*evprior
+    prob = fprior*dprior*tprior*tlh*evprior#*ageprior*radprior*massprior
     prob = prob/np.sum(prob)
+
     #pdb.set_trace()
     if (isinstance(dustmodel,pd.DataFrame) == False):
         names = ['teff', 'logg', 'feh_act', 'rad', 'mass', 'rho', 'lum', 'age']
@@ -652,6 +774,8 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
         #if (input.plx == -99.0):
 
         avstep=((np.max(mod['avs'][um])-np.min(mod['avs'][um]))/10.)
+	if avstep == 0:
+	    avstep = 0.001
         #pdb.set_trace()
 
         names = [
@@ -660,7 +784,6 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
         ]
         steps=[0.001, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, avstep, 0.01]
         fixes=[0, 1, 1, 0, 0, 1, 1, 0, 1, 0]
-
 
     # Provision figure
     if plot:
@@ -685,6 +808,12 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
                     mod[names[j]][um], prob, name=names[j], step=steps[j],
                     fixed=fixes[j],dustmodel=dustmodel
                 )
+	    elif ((len(np.unique(mod[names[j]][um])) == 1) and (names[j] == 'avs')):
+		res = mod[names[j]][um[0]]
+		err1 = 0.0
+		err2 = 0.0
+		x = res
+        	y = 1.0
             else:
                 res = 0.0
                 err1 = 0.0
@@ -702,13 +831,20 @@ def classify(input, model, dustmodel=0, plot=1, useav=-99.0, ext=-99.0):
             plotposterior(x, y, res, err1, err2, names, j, ix, iy)
             ix += 2
             iy += 2
+	
+	# Output individual posteriors
+	#np.savetxt(os.path.join(self.outdir,names[j]+'_posterior.txt'),(x,y),delimiter=',')
     
     # Plot HR diagrams
     if plot:
-        plothrd(model,input,mabs,mabse,ix,iy)
+	plothrd(model,mod,um,input,mabs,mabse,ix,iy)
+
+    # Output posteriors:
+    #output_replicated_posteriors(mod[um],prob,input.outdir +'/replicated_posteriors.csv')
 
     return result
-            
+
+
 # add extinction as a model parameter
 def reddening(model,um,avs,extfactors):
 
@@ -717,9 +853,10 @@ def reddening(model,um,avs,extfactors):
     #pdb.set_trace()
 
     keys = [
-        'dage', 'dmass', 'dfeh', 'teff', 'logg', 'feh_act', 'rad', 'mass',
-        'rho', 'age', 'gmag', 'rmag', 'imag', 'zmag', 'jmag', 'hmag', 
-        'bmag', 'vmag', 'btmag','vtmag', 'dis', 'kmag', 'avs', 'fdnu', 'eep'
+            'dage', 'dmass', 'dfeh', 'teff', 'logg', 'feh_act', 'rad', 'mass',
+            'rho', 'age', 'umag', 'gmag', 'rmag', 'imag', 'zmag', 'jmag', 'hmag', 
+            'bmag', 'vmag', 'btmag','vtmag', 'gamag', 'bpmag', 'rpmag',
+	    'dis', 'kmag', 'avs', 'fdnu','eep'
     ]
 
     dtype = [(key, float) for key in keys]
@@ -735,7 +872,7 @@ def reddening(model,um,avs,extfactors):
 
         # NB: in reality, the model mags should also be Av-dependent;
         # hopefully a small effect!
-        for c in 'b v g r i z j h k bt vt'.split():
+        for c in 'b v u g r i z j h k bt vt ga bp rp'.split():
             cmag = c + 'mag'
             ac = 'a' + c
             av = extfactors['av']
@@ -773,11 +910,10 @@ def reddening_map(model, model_mabs, redmap, dustmodel, um, input, extfactors,
     # This value contains fractional random errors in the reddening map for the Kepler field by comparisons between bayestar15 and bayestar17 maps:
     #redMapFracErr = 0.22092203269207672
 
+    #pdb.set_trace()
     # iterate distance and map a few times
     for i in range(0,1):
-        xp = np.concatenate(
-            ([0.0],np.array(dustmodel.columns[2:].str[3:],dtype='float'))
-        )
+        xp = np.concatenate(([0.0],np.array(dustmodel.columns[2:].str[3:],dtype='float')))
         fp = np.concatenate(([0.0],np.array(dustmodel.iloc[0][2:])))
         ebvs = np.interp(x=dis, xp=xp, fp = fp)
         #ebvs = ebvs + np.random.randn(len(ebvs))*np.median(ebvs)*redMapFracErr
@@ -790,14 +926,15 @@ def reddening_map(model, model_mabs, redmap, dustmodel, um, input, extfactors,
     if (len(um) == len(model['teff'])):
         model3 = copy.deepcopy(model)
 
-        for c in 'b v g r i z j h k bt vt'.split():
+        for c in 'b v u g r i z j h k bt vt ga bp rp'.split():
             cmag = c + 'mag'
             ac = 'a' + c
             av = extfactors['av']
             model3[cmag] = model[cmag] + extfactors[ac] * ebvs
 
         model3['dis'] = dis
-        model3['avs'] = extfactors['av']*ebvs	
+        model3['avs'] = extfactors['av']*ebvs
+	#pdb.set_trace()
 	 
     # if models have been pre-selected, extract and only redden those
     else:
@@ -805,13 +942,14 @@ def reddening_map(model, model_mabs, redmap, dustmodel, um, input, extfactors,
         nmodels = len(model2['teff'])
         keys = [
             'dage', 'dmass', 'dfeh', 'teff', 'logg', 'feh_act', 'rad', 'mass',
-            'rho', 'age', 'gmag', 'rmag', 'imag', 'zmag', 'jmag', 'hmag', 
-            'bmag', 'vmag', 'btmag','vtmag', 'dis', 'kmag', 'avs', 'fdnu','eep'
+            'rho', 'age', 'umag', 'gmag', 'rmag', 'imag', 'zmag', 'jmag', 'hmag', 
+            'bmag', 'vmag', 'btmag','vtmag', 'gamag', 'bpmag', 'rpmag',
+	    'dis', 'kmag', 'avs', 'fdnu','eep'
         ]
         
         dtype = [(key, float) for key in keys]
         model3 = np.zeros(nmodels,dtype=dtype)
-        for c in 'b v g r i z j h k bt vt'.split():
+        for c in 'b v u g r i z j h k bt vt ga bp rp'.split():
             cmag = c + 'mag'
             ac = 'a' + c
             av = extfactors['av']
@@ -825,6 +963,103 @@ def reddening_map(model, model_mabs, redmap, dustmodel, um, input, extfactors,
 
     return model3
 
+def output_replicated_posteriors(grid,p,fileName):
+    # grid = structure containing the model parameters, i.e. grid.teff, grid.rad, (in isoclassify: model['teff'], etc)
+    # NB: grid should only include models in the x-sigma box, not the whole grid
+    # p = posterior probabilities
+    # outfile = file where output posteriors go
+    x=grid
+    y=p
+
+    # normalize
+    y=y/max(y)
+    y=(y/max(y))*100.
+    y=y.astype(np.int64)
+
+    # number of samples desired
+    numSamp=5e4
+    
+    # initialize parameter arrays that will contain the samples
+    teffSamp=[]
+    loggSamp=[]
+    fehSamp=[]
+    radSamp=[]
+    massSamp=[]
+    rhoSamp=[]
+    lumSamp=[]
+    ageSamp=[]
+    disSamp=[]
+    avsSamp=[]
+
+    lum = np.log10((x['rad']**2. * (x['teff']/5772.0)**4.))
+
+    n=len(y)
+    seed = 12345
+    random.seed(seed)
+    # loop until we have enough samples
+    while (len(teffSamp) < numSamp+1.):
+        # draw random models	
+        ran=random.randint(0,n-1)
+	#pdb.set_trace()
+        # skip if its posterior prob is too low
+        if (y[ran] >= 1.):
+	    # if not, replicate this model by the normalized y value and append it to the parameter arrays
+	    teffSamp.extend([x['teff'][ran]]*y[ran])
+	    loggSamp.extend([x['logg'][ran]]*y[ran])
+	    fehSamp.extend([x['feh_act'][ran]]*y[ran])
+	    radSamp.extend([x['rad'][ran]]*y[ran])
+	    massSamp.extend([x['mass'][ran]]*y[ran])
+	    rhoSamp.extend([x['rho'][ran]]*y[ran])
+	    lumSamp.extend([lum[ran]]*y[ran])
+	    ageSamp.extend([x['age'][ran]]*y[ran])
+	    disSamp.extend([x['dis'][ran]]*y[ran])
+	    avsSamp.extend([x['avs'][ran]]*y[ran])
+    
+    # Combine all samples into a dataframe:
+    df = pd.DataFrame(list(zip(teffSamp, loggSamp, fehSamp, radSamp, massSamp, rhoSamp, lumSamp, ageSamp, disSamp, avsSamp)), 
+               columns =['teff', 'logg', 'feh', 'rad', 'mass', 'rho', 'lum', 'age', 'dis', 'avs'])
+
+    # Now output this df to a csv file:
+    df.to_csv(fileName,index=False)
+
+####### For extra magnitude/color error contribution:
+def compute_extra_MK_error(abskmag):
+    massPoly = np.array([-1.218087354981032275e-04,3.202749540513295540e-03,
+-2.649332720970200630e-02,5.491458806424324990e-02,6.102330369026183476e-02,
+6.122397810371335014e-01])
+
+    massPolyDeriv = np.array([-6.090436774905161376e-04,1.281099816205318216e-02,
+-7.947998162910602238e-02,1.098291761284864998e-01,6.102330369026183476e-02])
+
+    kmagExtraErr = abs(0.021*np.polyval(massPoly,abskmag)/np.polyval(massPolyDeriv,abskmag))
+
+    return kmagExtraErr
+
+def compute_extra_gk_color_error(gk):
+    teffPoly = np.array([5.838899127633915245e-06,-4.579640759410575821e-04,
+1.591988911769273360e-02,-3.229622768514631148e-01,4.234782988549875782e+00,
+-3.752421323678526477e+01,2.279521336429464498e+02,-9.419602441779162518e+02,
+2.570487048729761227e+03,-4.396474893847861495e+03,4.553858427460818348e+03,
+-4.123317864249115701e+03,9.028586421378711748e+03])
+
+    teffPolyDeriv = np.array([7.006678953160697955e-05,-5.037604835351633566e-03,
+1.591988911769273429e-01,-2.906660491663167978e+00,3.387826390839900625e+01,
+-2.626694926574968463e+02,1.367712801857678642e+03,-4.709801220889581600e+03,
+1.028194819491904491e+04,-1.318942468154358357e+04,9.107716854921636696e+03,
+-4.123317864249115701e+03])
+
+    gkExtraColorErr = abs(0.02*np.polyval(teffPoly,gk)/np.polyval(teffPolyDeriv,gk))
+
+    return gkExtraColorErr
+
+def compute_extra_rj_color_error(rj):
+    teffPoly = np.array([-9.033797695411665738e-05,-5.002516634534125151e-03,3.458439034564866899e-01,-7.850074022447024014e+00,9.695827458575601554e+01,-7.445989701176866902e+02,3.738880592898368377e+03,-1.242934535446293012e+04,2.698349141689277167e+04,-3.692273700110502978e+04,3.070683312986312012e+04,-1.699674869726793258e+04,1.140246789013836315e+04])
+
+    teffPolyDeriv = np.array([-1.084055723449399780e-03,-5.502768297987537666e-02,3.458439034564866787e+00,-7.065066620202321701e+01,7.756661966860481243e+02,-5.212192790823806718e+03,2.243328355739021208e+04,-6.214672677231465059e+04,1.079339656675710867e+05,-1.107682110033150821e+05,6.141366625972624024e+04,-1.699674869726793258e+04])
+
+    rjExtraColorErr = abs(0.02*np.polyval(teffPoly,rj)/np.polyval(teffPolyDeriv,rj))
+
+    return rjExtraColorErr
 
 ######################################### misc stuff
 

@@ -20,6 +20,30 @@ def query_dustmodel_coords(ra,dec):
     
     return dustModelDF
 
+def query_dustmodel_coords_green19(ra,dec):
+    reddenMap = BayestarWebQuery(version='bayestar2019')
+    sightLines = SkyCoord(ra*units.deg,dec*units.deg,frame='icrs')
+    distanceSamples = np.loadtxt("isoclassify/data/distance-samples-green19.txt",delimiter=',')*1000. # In pc, from bayestar2019 map distance samples
+    reddenContainer = reddenMap(sightLines,mode='best')
+    
+    del reddenMap # To clear reddenMap from memory
+    
+    dustModelDF = pd.DataFrame({'ra': [ra], 'dec': [dec]})
+
+    for index in xrange(len(reddenContainer)):
+        dustModelDF['av_'+str(round(distanceSamples[index],6))] = reddenContainer[index]
+    
+    return dustModelDF
+
+def query_dustmodel_coords_dustbatch(id_starname):
+    dustModelDF = pd.read_csv('isoclassify/data/stellar_reddening_samples.csv')
+    
+    dustModelDF = dustModelDF[dustModelDF['id_starname'] == id_starname]
+
+    dustModelDF.drop(dustModelDF.columns[[0, 3]], axis=1, inplace=True)
+
+    return dustModelDF
+
 def query_dustmodel_coords_allsky(ra,dec):
     reddenMap = mwdust.Combined15()
     sightLines = SkyCoord(ra*units.deg,dec*units.deg,frame='galactic')
@@ -80,4 +104,11 @@ def extinction(law):
             for line in f:
                 (key,val) = line.split(',')
                 out[key] = float(val)+grayoffset
+
+    if (law == 'green19'):
+        out = {}
+        with open("isoclassify/data/extinction-vector-green19.txt") as f:
+            for line in f:
+                (key,val) = line.split(',')
+                out[key] = float(val)
     return out

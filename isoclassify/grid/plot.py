@@ -43,7 +43,7 @@ def plotposterior(x,y,res,err1,err2,names,j,ix,iy):
         yt=fehprior(xt)
         plt.plot(xt,yt*np.max(y)/np.max(yt),'--g')
 
-def plothrd(model,input,mabs,mabse,ix,iy):
+def plothrd(model,mod,modsel,input,mabs,mabse,ix,iy):
     plt.subplots_adjust(
         left=0.08, bottom=0.05, right=0.96, top=0.96, wspace=0.31, hspace=0.26
     )
@@ -64,6 +64,9 @@ def plothrd(model,input,mabs,mabse,ix,iy):
     plt.plot(model['gmag'][ran[g]]-model['rmag'][ran[g]],\
              model['rmag'][ran[g]]-model['imag'][ran[g]],\
     '.',color='red',markersize=1,zorder=-32)
+    plt.plot(mod['gmag'][modsel]-mod['rmag'][modsel],\
+             mod['rmag'][modsel]-mod['imag'][modsel],\
+    '.',color='black',markersize=1,zorder=-32)
 
     if ((input.gmag > -99) & (input.rmag > -99) & (input.imag > -99)):
         plt.errorbar([input.gmag-input.rmag], [input.rmag-input.imag],xerr=np.sqrt(input.gmage**2+input.rmage**2),yerr=np.sqrt(input.rmage**2+input.image**2),color='green',elinewidth=5)
@@ -106,6 +109,9 @@ def plothrd(model,input,mabs,mabse,ix,iy):
     plt.plot(model['btmag'][ran[g]]-model['vtmag'][ran[g]],\
              model['jmag'][ran[g]]-model['hmag'][ran[g]],\
     '.',color='red',markersize=1,zorder=-32)
+    plt.plot(mod['btmag'][modsel]-mod['vtmag'][modsel],\
+             mod['jmag'][modsel]-mod['hmag'][modsel],\
+    '.',color='black',markersize=1,zorder=-32)
     
     if ((input.jmag > -99) & (input.hmag > -99) & (input.vtmag > -99) & (input.btmag > -99)):
         plt.errorbar([input.btmag-input.vtmag], [input.jmag-input.hmag], \
@@ -126,6 +132,9 @@ def plothrd(model,input,mabs,mabse,ix,iy):
     plt.plot(model['hmag'][ran[g]]-model['kmag'][ran[g]],\
              model['jmag'][ran[g]]-model['hmag'][ran[g]],\
     '.',color='red',markersize=1,zorder=-32)
+    plt.plot(mod['hmag'][modsel]-mod['kmag'][modsel],\
+             mod['jmag'][modsel]-mod['hmag'][modsel],\
+    '.',color='black',markersize=1,zorder=-32)
 
     if ((input.jmag > -99) & (input.hmag > -99) & (input.kmag > -99)):
         plt.errorbar([input.hmag-input.kmag], [input.jmag-input.hmag], \
@@ -152,6 +161,10 @@ def plothrd(model,input,mabs,mabse,ix,iy):
     plt.plot(model[mag1][ran[g]]-model[mag2][ran[g]], \
              model[absmag][ran[g]],'.',color='red',markersize=1,zorder=-32)
 
+    plt.plot(mod[mag1][modsel]-mod[mag2][modsel],\
+             mod[absmag][modsel],\
+    '.',color='black',markersize=1,zorder=-32)
+
     if ((input.plx > 0.) & (input.kmag > -99) & (input.gmag > -99) & (input.rmag > -99)):
         plt.errorbar([col], [mabs], xerr=cole, yerr=mabse,color='green',elinewidth=5)
 
@@ -176,6 +189,10 @@ def plothrd(model,input,mabs,mabse,ix,iy):
     plt.plot(model[mag1][ran[g]]-model[mag2][ran[g]], \
              model[absmag][ran[g]],'.',color='red',markersize=1,zorder=-32)
 
+    plt.plot(mod[mag1][modsel]-mod[mag2][modsel],\
+             mod[absmag][modsel],\
+    '.',color='black',markersize=1,zorder=-32)
+
     if ((input.plx > 0.) & (input.kmag > -99) & (input.gmag > -99)):
         plt.errorbar([col], [mabs], xerr=cole, yerr=mabse,color='green',elinewidth=5)
 
@@ -186,36 +203,14 @@ def plothrd(model,input,mabs,mabse,ix,iy):
     plt.xlabel(mag1+'-'+mag2)
     plt.ylabel(absmag)
     
-    # 2MASS J, J-K CMD
+    # 2MASS k, r-K CMD
     plt.subplot(2,4,6)
     
-    if (input.vmag > 0):
-        mag1='bmag'
-        mag2='vmag'
-        absmag='vmag'
-        col=input.bmag-input.vmag
-        cole=np.sqrt(input.bmage**2+input.vmage**2)
-        
-    if (input.vtmag > 0):
-        mag1='btmag'
-        mag2='vtmag'
-        absmag='kmag'
-        col=input.btmag-input.vtmag
-        cole=np.sqrt(input.btmage**2+input.vtmage**2)
-
-    if (input.gmag > 0):
-        mag1='gmag'
-        mag2='rmag'
-        absmag='gmag'
-        col=input.gmag-input.rmag
-        cole=np.sqrt(input.gmage**2+input.rmage**2)
-
-    if (input.jmag > 0):
-        mag1='jmag'
-        mag2='kmag'
-        absmag='kmag'
-        col=input.jmag-input.kmag
-        cole=np.sqrt(input.jmage**2+input.kmage**2)
+    mag1='rmag'
+    mag2='kmag'
+    absmag='kmag'
+    col=input.rmag - input.kmag
+    cole=np.sqrt(input.rmage**2+input.kmage**2)
 
     plt.plot(model[mag1][ran[d]]-model[mag2][ran[d]],\
              model[absmag][ran[d]],'.',color='blue',markersize=1,zorder=-32)
@@ -223,11 +218,17 @@ def plothrd(model,input,mabs,mabse,ix,iy):
     plt.plot(model[mag1][ran[g]]-model[mag2][ran[g]], \
              model[absmag][ran[g]],'.',color='red',markersize=1,zorder=-32)
 
-    if ((input.plx > 0.) & (input.kmag > -99)):
+    plt.plot(mod[mag1][modsel]-mod[mag2][modsel],\
+             mod[absmag][modsel],\
+    '.',color='black',markersize=1,zorder=-32)
+
+    if ((input.plx > 0.) & (input.kmag > -99) & (input.rmag > -99)):
         plt.errorbar([col], [mabs], xerr=cole, yerr=mabse,color='green',elinewidth=5)
 
-    plt.xlim([-0.5,2])
-    plt.ylim([np.max(model[absmag]),np.min(model[absmag])])
+    #plt.xlim([np.min(model[absmag]),np.max(model[absmag])])
+    #plt.ylim([np.max(model[absmag]),np.min(model[absmag])])
+    plt.autoscale()
+    plt.gca().invert_yaxis()
     plt.xlabel(mag1+'-'+mag2)
     plt.ylabel(absmag)
 
@@ -244,6 +245,10 @@ def plothrd(model,input,mabs,mabse,ix,iy):
 
     plt.plot(model[mag1][ran[g]]-model[mag2][ran[g]], \
              model[absmag][ran[g]],'.',color='red',markersize=1,zorder=-32)
+
+    plt.plot(mod[mag1][modsel]-mod[mag2][modsel],\
+             mod[absmag][modsel],\
+    '.',color='black',markersize=1,zorder=-32)
 
     if ((input.plx > 0.) & (input.kmag > -99) & (input.vtmag > -99)):
         plt.errorbar([col], [mabs], xerr=cole, yerr=mabse,color='green',elinewidth=5)
@@ -267,6 +272,10 @@ def plothrd(model,input,mabs,mabse,ix,iy):
         plt.plot(model['teff'][ran[g]],model['logg'][ran[g]],\
                  '.',color='red',markersize=1,zorder=-32)
 
+	plt.plot(mod['teff'][modsel],\
+             mod['logg'][modsel],\
+    '.',color='black',markersize=1,zorder=-32)
+
         plt.errorbar([input.teff], [input.logg], xerr=input.teffe, yerr=input.logge, \
                  color='green',elinewidth=5)
 	plt.xlabel('teff')
@@ -276,6 +285,7 @@ def plothrd(model,input,mabs,mabse,ix,iy):
         mod_numax=3090*(10**model['logg']/27420.)*(model['teff']/5777.)**(-0.5)
         plt.semilogy(model['teff'][ran[d]],mod_numax[ran[d]],\
                  '.',color='blue',markersize=1,zorder=-32)
+	#plt.semilogy(modelsel['teff'],modelsel['numax'],'.',color='black',markersize=1,zorder=-32)
         plt.xlim([10000,2000])
         plt.ylim([100000,0.1])
         plt.plot(model['teff'][ran[g]],mod_numax[ran[g]],\

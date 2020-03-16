@@ -12,37 +12,43 @@ def binpdf(x,y,step,iname,dustmodel):
         
         if fnmatch.fnmatch(iname,'*age*'):
 		#xax = np.arange(0.,14.5,0.25)
-                step = 0.25
-                xax = np.arange(0.,14.02,step)
-                xax= np.round(xax,3)
+		xax = 10.**(np.arange(71.)/(70./2.15) - 1.)
+		xax = np.concatenate((xax[:50],xax[50]+np.arange(67)*0.25))
+                #step = 0.1
+                #xax = np.arange(0.0,15.75,step)
+                #xax= np.round(xax,4)
                 #xax = np.arange(0.125,14.125,0.25)
                 #xax = np.arange(4.,5.01,0.025)
                 #step=0.25
                 #step = 0.025
-		
-	if fnmatch.fnmatch(iname,'*feh_act*'):
+	#elif fnmatch.fnmatch(iname,'*feh_act*'):
 		#xax = np.arange(-2.05,0.55,0.051)
-                step=0.05
-                xax=np.arange(-2.00,0.504,step)
-                xax = np.round(xax,3)
+                #step=0.05
+                #xax=np.arange(-2.00,0.504,step)
+                #xax = np.round(xax,4)
                 #xax = np.arange(-2.025,0.525,0.05)
                 #xax = np.arange(-0.1005,0.1005,0.005)
                 #step=0.05
                 #step = 0.005
 
-	
-        if ( (isinstance(dustmodel,pd.DataFrame) == False) & (fnmatch.fnmatch(iname,'*avs*'))):
+	elif ( (isinstance(dustmodel,pd.DataFrame) == False) & (fnmatch.fnmatch(iname,'*avs*'))):
                 grid=np.unique(x)
                 spacing=grid[1]-grid[0]
                 xax = np.arange(grid[0]-spacing/4.,grid[len(grid)-1]+spacing/4.,spacing)
                 step=spacing
+
+	else:
+		xax= xax+step/2. 
     
 	yax = np.zeros(len(xax))
 		
 	digitized = np.digitize(x, xax)
 
-        if iname == "age" or iname == "feh_act":
-            digitized = np.digitize(np.round(x,3), xax)
+	#pdb.set_trace()
+
+        #if iname == "logg":#if iname == "age":# or iname == "feh_act":
+            #digitized = np.digitize(np.round(x,3), xax)
+	    #pdb.set_trace()
         
 	yax = [y[digitized == i].sum() for i in range(1, len(xax)+1)]
 
@@ -58,7 +64,7 @@ def binpdf(x,y,step,iname,dustmodel):
 	pdb.set_trace()
         '''
 
-	xax= xax+step/2.
+	#xax= xax+step/2.
         #yax = gaussian_filter(yax,1.5)
         #if fnmatch.fnmatch(iname,'*avs*'):
         #         pdb.set_trace()
@@ -93,8 +99,8 @@ def getpdf(x,y,step,fixed,name,dustmodel):
 
         if ( (isinstance(dustmodel,pd.DataFrame) == False) & (fnmatch.fnmatch(name,'*avs*'))):
                 return xax,yax,med,emed1,emed2
-        if fnmatch.fnmatch(name,'*feh_act*'):
-                return xax,yax,med,emed1,emed2
+        #if fnmatch.fnmatch(name,'*feh_act*'):
+                #return xax,yax,med,emed1,emed2
         if fnmatch.fnmatch(name,'*age*'):
                 return xax,yax,med,emed1,emed2
 
